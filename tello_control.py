@@ -91,29 +91,34 @@ class control_handler:
 
 #subscribe tello_state and tello_image
 class info_updater():   
-    def __init__(self):
+    def __init__(self,show_key,state_key):
         rospy.Subscriber("tello_state", String, self.update_state)
         rospy.Subscriber("tello_image", Image, self.update_img)
         self.con_thread = threading.Thread(target = rospy.spin)
         self.con_thread.start()
+        self.show_key = show_key
+        self.state_key = state_key
 
     def update_state(self,data):
         global tello_state, tello_state_lock
         tello_state_lock.acquire() #thread locker
         tello_state = data.data
         tello_state_lock.release()
-        # print(tello_state)
+        if self.state_key == 'y':
+            print(drone_state())
 
     def update_img(self,data):
         global img, img_lock
         img_lock.acquire()#thread locker
         img = CvBridge().imgmsg_to_cv2(data, desired_encoding = "passthrough")
         img_lock.release()
+        if self.show_key == 'y':
+            showimg()
         # print(img)
 
 
 # put string into dict, easy to find
-def parse_state():
+def drone_state():
     global tello_state, tello_state_lock
     tello_state_lock.acquire()
     statestr = tello_state.split(';')
@@ -174,20 +179,21 @@ class task_handle():
     def finding_location(self): # find locating blanket (the higher, the easier)
         assert (self.now_stage == self.taskstages.finding_location)
         # 寻找定位毯
-        while not ( parse_state()['mid'] > 0 ): # if no locating blanket is found:
+        while not ( drone_state()['mid'] > 0 ): # if no locating blanket is found:
+            print(drone_state())
+        # for i in range(2):
+            print("the {} finding blanket.".format(i))
             distance = random.randint(20,30) # randomly select distance
-            print (distance)
             # 随机上升一定高度
             if (self.States_Dict['z'] < 150):
                 self.ctrl.up(distance) # tello up
             time.sleep(4) # wait for command finished
-            # showimg()
         print("Find locating blanket!")
         self.now_stage = self.taskstages.order_location
 
     # target format: [x,y,z,yaw]
     def arrive_target(self,target):
-        self.States_Dict = parse_state()
+        self.States_Dict = drone_state()
         print(self.States_Dict)
         if self.States_Dict['mid'] < 0 :
             self.now_stage = self.taskstages.finding_location
@@ -243,9 +249,7 @@ class task_handle():
 
 
 
-        
-
-
+    
     # 计划通过cv进行负反馈调节通过门
     def passing_door(self):
         assert (self.now_stage == self.taskstages.passing_door)
@@ -257,13 +261,14 @@ class task_handle():
         state_conf = 0
         # 获取当前状态
         # TODO： 定位毯具体坐标
-        self.States_Dict = parse_state()
-        target = [-100,30,150,90]
-        self.target_move(target)
+        self.States_Dict = drone_state()
+        # target = [-100,30,150,90]
+        # self.target_move(target)
+        self,ctrl.down(20)
+        print("stop")
         self.ctrl.stop()
         state_conf += 1
-        print("stop")
-        showimg()
+        print("stop finished.")
         self.now_stage = self.taskstages.finished    
 
         # while not ( self.States_Dict['mpry'][1] <= 8 and self.States_Dict['mpry'][1] >= -8 and self.States_Dict['x'] <= 20 and self.States_Dict['x'] >= -20 and  self.States_Dict['y'] <= 20 and self.States_Dict['y'] >= -20 and abs(self.States_Dict['z']) >= 120 and abs(self.States_Dict['z']) <= 160):
@@ -301,7 +306,7 @@ class task_handle():
         #         self.ctrl.stop()
         #         state_conf += 1
         #         print("stop")
-        #     self.States_Dict = parse_state()
+        #     self.States_Dict = drone_state()
         #     showimg()
         #     if self.States_Dict['mid'] < 0 :
         #         self.now_stage = self.taskstages.finding_location
@@ -311,29 +316,31 @@ class task_handle():
 
 if __name__ == '__main__':
     rospy.init_node('tello_control', anonymous=True)
-
+    show_key = raw_input("Show image? input 'y'!")
+    state_key = raw_input("Show state? input 'y'!")
     control_pub = rospy.Publisher('command', String, queue_size=1)
     ctrl = control_handler(control_pub)
-    infouper = info_updater()
+    infouper = info_updater(show_key,state_key)
     tasker = task_handle(ctrl)
     
     time.sleep(2)
+    
     ctrl.mon()
     time.sleep(5)
     while(1):
-        if parse_state()['mid'] == -1:
+        if drone_state()['mid'] == -1:
             ctrl.takeoff( )
             print("take off")
             break
     #print("mon")
-    time.sleep(4)
-    ctrl.up(60)
+    time.sleep(2)
+    ctrl.up(40)
     print("up 60")
     time.sleep(2)
 
     tasker.main()
-
-    ctrl.land()
+    print("Already out now.")
+    exit(0)
 
     
 
