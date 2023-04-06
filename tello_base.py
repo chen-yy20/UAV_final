@@ -8,7 +8,7 @@ from stats import Stats
 class Tello:
     """Wrapper class to interact with the Tello drone."""
 
-    def __init__(self, local_ip, local_port, imperial=False, command_timeout=.3, tello_ip='192.168.0.133',
+    def __init__(self, local_ip, local_port, imperial=False, command_timeout=.3, tello_ip='192.168.0.102',
                  tello_port=8889):
         """
         Binds to the local IP/port and puts the Tello into command mode.
